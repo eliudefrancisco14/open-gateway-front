@@ -1,7 +1,10 @@
-"use client"
-
 import { StreamDashboard } from "@/components/stream-dashboard"
+import { StreamProvider } from "@/contexts/stream-context"
 
 export default function Home() {
-  return <StreamDashboard />
+  return (
+    <StreamProvider>
+      <StreamDashboard />
+    </StreamProvider>
+  )
 }
