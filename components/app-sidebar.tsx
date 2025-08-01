@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Upload, Radio, Video, Settings, Activity } from "lucide-react"
+import { Home, Radio, Video, Settings, BarChart3 } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -10,70 +10,61 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
 } from "@/components/ui/sidebar"
-import { useStreamContext } from "@/contexts/stream-context"
 
-const menuItems = [
+const items = [
   {
     title: "Dashboard",
-    url: "dashboard",
+    url: "#",
     icon: Home,
+    id: "overview",
   },
   {
-    title: "Ingestão de Streams",
-    url: "ingest",
-    icon: Upload,
+    title: "Novo Stream",
+    url: "#",
+    icon: Radio,
+    id: "ingest",
   },
   {
     title: "Streams Ativos",
-    url: "active",
-    icon: Radio,
+    url: "#",
+    icon: Video,
+    id: "active",
   },
   {
     title: "Vídeos Processados",
-    url: "processed",
-    icon: Video,
+    url: "#",
+    icon: BarChart3,
+    id: "processed",
   },
   {
     title: "Configurações",
-    url: "settings",
+    url: "#",
     icon: Settings,
+    id: "settings",
   },
 ]
 
-export function AppSidebar() {
-  const { currentView, setCurrentView, stats } = useStreamContext()
+interface AppSidebarProps {
+  activeSection?: string
+  onSectionChange?: (section: string) => void
+}
 
+export function AppSidebar({ activeSection = "overview", onSectionChange }: AppSidebarProps) {
   return (
     <Sidebar>
-      <SidebarHeader className="border-b p-4">
-        <div className="flex items-center gap-2">
-          <Activity className="h-6 w-6 text-primary" />
-          <h1 className="text-lg font-semibold">Stream Manager</h1>
-        </div>
-      </SidebarHeader>
-
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navegação</SidebarGroupLabel>
+          <SidebarGroupLabel>Stream Dashboard</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    onClick={() => setCurrentView(item.url)}
-                    isActive={currentView === item.url}
-                    className="w-full justify-start"
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.title}</span>
-                    {item.url === "active" && stats.activeStreams > 0 && (
-                      <span className="ml-auto bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
-                        {stats.activeStreams}
-                      </span>
-                    )}
+                  <SidebarMenuButton asChild isActive={activeSection === item.id}>
+                    <button onClick={() => onSectionChange?.(item.id)} className="w-full">
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </button>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -81,15 +72,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter className="border-t p-4">
-        <div className="text-xs text-muted-foreground">
-          <div>
-            Slots: {stats.availableSlots}/{stats.maxConcurrentStreams}
-          </div>
-          <div>WebSocket: {stats.websocketConnections} conexões</div>
-        </div>
-      </SidebarFooter>
     </Sidebar>
   )
 }

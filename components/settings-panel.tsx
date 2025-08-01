@@ -7,71 +7,54 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { useToast } from "@/hooks/use-toast"
+import { Video, Bell, Shield, Palette, Code, Save, RotateCcw, CheckCircle, AlertCircle, Wifi } from "lucide-react"
 import { useStreamContext } from "@/contexts/stream-context"
-import {
-  Settings,
-  Wifi,
-  Bell,
-  Shield,
-  Palette,
-  Code,
-  Save,
-  RotateCcw,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-} from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export function SettingsPanel() {
-  const { settings, updateSettings, resetSettings } = useStreamContext()
-  const { toast } = useToast()
+  const { settings, updateSettings, resetSettings, testConnection } = useStreamContext()
   const [isTestingConnection, setIsTestingConnection] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle")
+  const { toast } = useToast()
 
   const handleSave = () => {
     toast({
       title: "Configurações salvas",
-      description: "Suas configurações foram salvas com sucesso.",
+      description: "Suas configurações foram salvas com sucesso",
     })
   }
 
   const handleReset = () => {
     resetSettings()
     toast({
-      title: "Configurações restauradas",
-      description: "Todas as configurações foram restauradas para os valores padrão.",
+      title: "Configurações resetadas",
+      description: "Todas as configurações foram restauradas para os valores padrão",
     })
   }
 
-  const testConnection = async () => {
+  const handleTestConnection = async () => {
     setIsTestingConnection(true)
     setConnectionStatus("idle")
 
     try {
-      // Simular teste de conexão
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      // Simular resultado aleatório
-      const success = Math.random() > 0.3
-      setConnectionStatus(success ? "success" : "error")
+      const isConnected = await testConnection()
+      setConnectionStatus(isConnected ? "success" : "error")
 
       toast({
-        title: success ? "Conexão bem-sucedida" : "Falha na conexão",
-        description: success
-          ? "Todos os serviços estão funcionando corretamente."
-          : "Verifique suas configurações de rede e tente novamente.",
-        variant: success ? "default" : "destructive",
+        title: isConnected ? "Conexão bem-sucedida" : "Falha na conexão",
+        description: isConnected
+          ? "A conexão com a API está funcionando corretamente"
+          : "Não foi possível conectar com a API",
+        variant: isConnected ? "default" : "destructive",
       })
     } catch (error) {
       setConnectionStatus("error")
       toast({
-        title: "Erro no teste",
-        description: "Não foi possível testar a conexão.",
+        title: "Erro no teste de conexão",
+        description: "Ocorreu um erro ao testar a conexão",
         variant: "destructive",
       })
     } finally {
@@ -79,272 +62,344 @@ export function SettingsPanel() {
     }
   }
 
-  const getConnectionStatusIcon = () => {
-    switch (connectionStatus) {
-      case "success":
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      case "error":
-        return <XCircle className="h-4 w-4 text-red-500" />
-      default:
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />
-    }
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="h-5 w-5" />
-          Configurações do Sistema
-        </CardTitle>
-        <CardDescription>
-          Gerencie as configurações de streaming, notificações e preferências do sistema.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="streaming" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="streaming" className="flex items-center gap-1">
-              <Wifi className="h-4 w-4" />
-              <span className="hidden sm:inline">Streaming</span>
-            </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-1">
-              <Bell className="h-4 w-4" />
-              <span className="hidden sm:inline">Notificações</span>
-            </TabsTrigger>
-            <TabsTrigger value="security" className="flex items-center gap-1">
-              <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline">Segurança</span>
-            </TabsTrigger>
-            <TabsTrigger value="appearance" className="flex items-center gap-1">
-              <Palette className="h-4 w-4" />
-              <span className="hidden sm:inline">Aparência</span>
-            </TabsTrigger>
-            <TabsTrigger value="advanced" className="flex items-center gap-1">
-              <Code className="h-4 w-4" />
-              <span className="hidden sm:inline">Avançado</span>
-            </TabsTrigger>
-          </TabsList>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Configurações</h2>
+        <p className="text-muted-foreground">Gerencie as configurações do sistema e preferências</p>
+      </div>
 
-          <TabsContent value="streaming" className="space-y-6">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="rtmp-url">URL RTMP</Label>
-                  <Input
-                    id="rtmp-url"
-                    value={settings.rtmpUrl}
-                    onChange={(e) => updateSettings({ rtmpUrl: e.target.value })}
-                    placeholder="rtmp://live.twitch.tv/live/"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="stream-key">Chave de Stream</Label>
-                  <Input
-                    id="stream-key"
-                    type="password"
-                    value={settings.streamKey}
-                    onChange={(e) => updateSettings({ streamKey: e.target.value })}
-                    placeholder="Sua chave de stream"
-                  />
-                </div>
-              </div>
+      <Tabs defaultValue="streaming" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="streaming">
+            <Video className="w-4 h-4 mr-2" />
+            Streaming
+          </TabsTrigger>
+          <TabsTrigger value="notifications">
+            <Bell className="w-4 h-4 mr-2" />
+            Notificações
+          </TabsTrigger>
+          <TabsTrigger value="security">
+            <Shield className="w-4 h-4 mr-2" />
+            Segurança
+          </TabsTrigger>
+          <TabsTrigger value="appearance">
+            <Palette className="w-4 h-4 mr-2" />
+            Aparência
+          </TabsTrigger>
+          <TabsTrigger value="advanced">
+            <Code className="w-4 h-4 mr-2" />
+            Avançado
+          </TabsTrigger>
+        </TabsList>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <TabsContent value="streaming" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações de Streaming</CardTitle>
+              <CardDescription>Configure as opções padrão para processamento de streams</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="resolution">Resolução</Label>
-                  <Select value={settings.resolution} onValueChange={(value) => updateSettings({ resolution: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1920x1080">1920x1080 (1080p)</SelectItem>
-                      <SelectItem value="1280x720">1280x720 (720p)</SelectItem>
-                      <SelectItem value="854x480">854x480 (480p)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fps">FPS</Label>
+                  <Label htmlFor="quality">Qualidade Padrão</Label>
                   <Select
-                    value={settings.fps.toString()}
-                    onValueChange={(value) => updateSettings({ fps: Number.parseInt(value) })}
+                    value={settings.streaming.quality}
+                    onValueChange={(value) =>
+                      updateSettings({
+                        streaming: { ...settings.streaming, quality: value },
+                      })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="720p">720p HD</SelectItem>
+                      <SelectItem value="1080p">1080p Full HD</SelectItem>
+                      <SelectItem value="1440p">1440p 2K</SelectItem>
+                      <SelectItem value="2160p">2160p 4K</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="fps">FPS Padrão</Label>
+                  <Select
+                    value={settings.streaming.fps.toString()}
+                    onValueChange={(value) =>
+                      updateSettings({
+                        streaming: { ...settings.streaming, fps: Number.parseInt(value) },
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="24">24 FPS</SelectItem>
                       <SelectItem value="30">30 FPS</SelectItem>
                       <SelectItem value="60">60 FPS</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="audio-quality">Qualidade do Áudio</Label>
-                  <Select
-                    value={settings.audioQuality}
-                    onValueChange={(value) => updateSettings({ audioQuality: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="high">Alta (320 kbps)</SelectItem>
-                      <SelectItem value="medium">Média (192 kbps)</SelectItem>
-                      <SelectItem value="low">Baixa (128 kbps)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="bitrate">Bitrate (kbps)</Label>
+                <Input
+                  id="bitrate"
+                  type="number"
+                  value={settings.streaming.bitrate}
+                  onChange={(e) =>
+                    updateSettings({
+                      streaming: {
+                        ...settings.streaming,
+                        bitrate: Number.parseInt(e.target.value) || 0,
+                      },
+                    })
+                  }
+                />
+              </div>
+
+              <Separator />
+
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Bitrate: {settings.bitrate} kbps</Label>
-                  <Slider
-                    value={[settings.bitrate]}
-                    onValueChange={(value) => updateSettings({ bitrate: value[0] })}
-                    max={10000}
-                    min={1000}
-                    step={500}
-                    className="w-full"
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Início Automático</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Iniciar processamento automaticamente ao adicionar stream
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.streaming.autoStart}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        streaming: { ...settings.streaming, autoStart: checked },
+                      })
+                    }
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Volume do Áudio: {settings.audioVolume}%</Label>
-                  <Slider
-                    value={[settings.audioVolume]}
-                    onValueChange={(value) => updateSettings({ audioVolume: value[0] })}
-                    max={100}
-                    min={0}
-                    step={5}
-                    className="w-full"
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Gravação Habilitada</Label>
+                    <p className="text-sm text-muted-foreground">Salvar arquivos processados automaticamente</p>
+                  </div>
+                  <Switch
+                    checked={settings.streaming.recordingEnabled}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        streaming: { ...settings.streaming, recordingEnabled: checked },
+                      })
+                    }
                   />
                 </div>
               </div>
-            </div>
-          </TabsContent>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <TabsContent value="notifications" className="space-y-6">
-            <div className="space-y-4">
+        <TabsContent value="notifications" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações de Notificações</CardTitle>
+              <CardDescription>Configure como e quando receber notificações</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Alertas por Email</Label>
+                    <p className="text-sm text-muted-foreground">Receber notificações importantes por email</p>
+                  </div>
+                  <Switch
+                    checked={settings.notifications.emailAlerts}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        notifications: { ...settings.notifications, emailAlerts: checked },
+                      })
+                    }
+                  />
+                </div>
+
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Notificações Push</Label>
-                    <p className="text-sm text-muted-foreground">Receba notificações no navegador</p>
+                    <p className="text-sm text-muted-foreground">Receber notificações push no navegador</p>
                   </div>
                   <Switch
-                    checked={settings.notifications.push}
+                    checked={settings.notifications.pushNotifications}
                     onCheckedChange={(checked) =>
                       updateSettings({
-                        notifications: { ...settings.notifications, push: checked },
+                        notifications: { ...settings.notifications, pushNotifications: checked },
                       })
                     }
                   />
                 </div>
-                <Separator />
+
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Notificações por Email</Label>
-                    <p className="text-sm text-muted-foreground">Receba alertas importantes por email</p>
+                    <Label>Stream Iniciado</Label>
+                    <p className="text-sm text-muted-foreground">Notificar quando um stream for iniciado</p>
                   </div>
                   <Switch
-                    checked={settings.notifications.email}
+                    checked={settings.notifications.streamStarted}
                     onCheckedChange={(checked) =>
                       updateSettings({
-                        notifications: { ...settings.notifications, email: checked },
+                        notifications: { ...settings.notifications, streamStarted: checked },
                       })
                     }
                   />
                 </div>
-                <Separator />
+
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Alertas de Stream</Label>
-                    <p className="text-sm text-muted-foreground">Notificações sobre status dos streams</p>
+                    <Label>Marcos de Visualização</Label>
+                    <p className="text-sm text-muted-foreground">Notificar ao atingir marcos de visualização</p>
                   </div>
                   <Switch
-                    checked={settings.notifications.streamAlerts}
+                    checked={settings.notifications.viewerMilestones}
                     onCheckedChange={(checked) =>
                       updateSettings({
-                        notifications: { ...settings.notifications, streamAlerts: checked },
+                        notifications: { ...settings.notifications, viewerMilestones: checked },
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Menções no Chat</Label>
+                    <p className="text-sm text-muted-foreground">Notificar quando for mencionado no chat</p>
+                  </div>
+                  <Switch
+                    checked={settings.notifications.chatMentions}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        notifications: { ...settings.notifications, chatMentions: checked },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="security" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações de Segurança</CardTitle>
+              <CardDescription>Gerencie a segurança e acesso ao sistema</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Autenticação de Dois Fatores</Label>
+                    <p className="text-sm text-muted-foreground">Adicionar uma camada extra de segurança</p>
+                  </div>
+                  <Switch
+                    checked={settings.security.twoFactorAuth}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        security: { ...settings.security, twoFactorAuth: checked },
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Lista Branca de IPs</Label>
+                    <p className="text-sm text-muted-foreground">Restringir acesso a IPs específicos</p>
+                  </div>
+                  <Switch
+                    checked={settings.security.ipWhitelist}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        security: { ...settings.security, ipWhitelist: checked },
                       })
                     }
                   />
                 </div>
               </div>
 
-              {settings.notifications.email && (
-                <div className="space-y-2">
-                  <Label htmlFor="notification-email">Email para Notificações</Label>
-                  <Input
-                    id="notification-email"
-                    type="email"
-                    value={settings.notificationEmail}
-                    onChange={(e) => updateSettings({ notificationEmail: e.target.value })}
-                    placeholder="seu@email.com"
-                  />
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="security" className="space-y-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Autenticação de Dois Fatores</Label>
-                  <p className="text-sm text-muted-foreground">Adicione uma camada extra de segurança</p>
-                </div>
-                <Switch
-                  checked={settings.security.twoFactor}
-                  onCheckedChange={(checked) =>
-                    updateSettings({
-                      security: { ...settings.security, twoFactor: checked },
-                    })
-                  }
-                />
-              </div>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Stream Privado</Label>
-                  <p className="text-sm text-muted-foreground">Requer senha para visualizar streams</p>
-                </div>
-                <Switch
-                  checked={settings.security.privateStream}
-                  onCheckedChange={(checked) =>
-                    updateSettings({
-                      security: { ...settings.security, privateStream: checked },
-                    })
-                  }
-                />
-              </div>
 
-              {settings.security.privateStream && (
-                <div className="space-y-2">
-                  <Label htmlFor="stream-password">Senha do Stream</Label>
+              <div className="space-y-2">
+                <Label htmlFor="streamKey">Chave de Stream</Label>
+                <div className="flex gap-2">
                   <Input
-                    id="stream-password"
-                    type="password"
-                    value={settings.security.streamPassword}
+                    id="streamKey"
+                    value={settings.security.streamKey}
                     onChange={(e) =>
                       updateSettings({
-                        security: { ...settings.security, streamPassword: e.target.value },
+                        security: { ...settings.security, streamKey: e.target.value },
                       })
                     }
-                    placeholder="Digite uma senha segura"
+                    className="font-mono"
                   />
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      updateSettings({
+                        security: {
+                          ...settings.security,
+                          streamKey: "sk_live_" + Math.random().toString(36).substr(2, 9),
+                        },
+                      })
+                    }
+                  >
+                    Gerar Nova
+                  </Button>
                 </div>
-              )}
-            </div>
-          </TabsContent>
+              </div>
 
-          <TabsContent value="appearance" className="space-y-6">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="moderationLevel">Nível de Moderação</Label>
+                <Select
+                  value={settings.security.moderationLevel}
+                  onValueChange={(value) =>
+                    updateSettings({
+                      security: { ...settings.security, moderationLevel: value },
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixo</SelectItem>
+                    <SelectItem value="medium">Médio</SelectItem>
+                    <SelectItem value="high">Alto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="appearance" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações de Aparência</CardTitle>
+              <CardDescription>Personalize a aparência da interface</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="theme">Tema</Label>
-                  <Select value={settings.theme} onValueChange={(value) => updateSettings({ theme: value })}>
+                  <Select
+                    value={settings.appearance.theme}
+                    onValueChange={(value) =>
+                      updateSettings({
+                        appearance: { ...settings.appearance, theme: value },
+                      })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -355,127 +410,190 @@ export function SettingsPanel() {
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="layout">Layout</Label>
-                  <Select value={settings.layout} onValueChange={(value) => updateSettings({ layout: value })}>
+                  <Label htmlFor="language">Idioma</Label>
+                  <Select
+                    value={settings.appearance.language}
+                    onValueChange={(value) =>
+                      updateSettings({
+                        appearance: { ...settings.appearance, language: value },
+                      })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="grid">Grade</SelectItem>
-                      <SelectItem value="list">Lista</SelectItem>
-                      <SelectItem value="compact">Compacto</SelectItem>
+                      <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                      <SelectItem value="en-US">English (US)</SelectItem>
+                      <SelectItem value="es-ES">Español</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Fuso Horário</Label>
+                <Select
+                  value={settings.appearance.timezone}
+                  onValueChange={(value) =>
+                    updateSettings({
+                      appearance: { ...settings.appearance, timezone: value },
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="America/Sao_Paulo">São Paulo (GMT-3)</SelectItem>
+                    <SelectItem value="America/New_York">New York (GMT-5)</SelectItem>
+                    <SelectItem value="Europe/London">London (GMT+0)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Separator />
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>Animações</Label>
-                  <p className="text-sm text-muted-foreground">Habilitar animações na interface</p>
+                  <Label>Modo Compacto</Label>
+                  <p className="text-sm text-muted-foreground">Usar interface mais compacta</p>
                 </div>
                 <Switch
-                  checked={settings.animations}
-                  onCheckedChange={(checked) => updateSettings({ animations: checked })}
+                  checked={settings.appearance.compactMode}
+                  onCheckedChange={(checked) =>
+                    updateSettings({
+                      appearance: { ...settings.appearance, compactMode: checked },
+                    })
+                  }
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="advanced" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações Avançadas</CardTitle>
+              <CardDescription>Configurações técnicas e de desenvolvimento</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Acesso à API</Label>
+                  <p className="text-sm text-muted-foreground">Habilitar acesso programático à API</p>
+                </div>
+                <Switch
+                  checked={settings.advanced.apiAccess}
+                  onCheckedChange={(checked) =>
+                    updateSettings({
+                      advanced: { ...settings.advanced, apiAccess: checked },
+                    })
+                  }
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Atualização Automática: {settings.autoRefresh}s</Label>
-                <Slider
-                  value={[settings.autoRefresh]}
-                  onValueChange={(value) => updateSettings({ autoRefresh: value[0] })}
-                  max={120}
-                  min={10}
-                  step={10}
-                  className="w-full"
-                />
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="advanced" className="space-y-6">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="api-endpoint">Endpoint da API</Label>
-                  <Input
-                    id="api-endpoint"
-                    value={settings.apiEndpoint}
-                    onChange={(e) => updateSettings({ apiEndpoint: e.target.value })}
-                    placeholder="https://api.streamdashboard.com/v1"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="webhook-url">URL do Webhook</Label>
-                  <Input
-                    id="webhook-url"
-                    value={settings.webhookUrl}
-                    onChange={(e) => updateSettings({ webhookUrl: e.target.value })}
-                    placeholder="https://seu-webhook.com/endpoint"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Modo Debug</Label>
-                  <p className="text-sm text-muted-foreground">Habilitar logs detalhados para depuração</p>
-                </div>
-                <Switch
-                  checked={settings.debugMode}
-                  onCheckedChange={(checked) => updateSettings({ debugMode: checked })}
+                <Label htmlFor="webhookUrl">URL do Webhook</Label>
+                <Input
+                  id="webhookUrl"
+                  type="url"
+                  placeholder="https://exemplo.com/webhook"
+                  value={settings.advanced.webhookUrl}
+                  onChange={(e) =>
+                    updateSettings({
+                      advanced: { ...settings.advanced, webhookUrl: e.target.value },
+                    })
+                  }
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Buffer Size: {settings.bufferSize} MB</Label>
-                <Slider
-                  value={[settings.bufferSize]}
-                  onValueChange={(value) => updateSettings({ bufferSize: value[0] })}
-                  max={1024}
-                  min={64}
-                  step={64}
-                  className="w-full"
+                <Label htmlFor="customDomain">Domínio Personalizado</Label>
+                <Input
+                  id="customDomain"
+                  placeholder="meudominio.com"
+                  value={settings.advanced.customDomain}
+                  onChange={(e) =>
+                    updateSettings({
+                      advanced: { ...settings.advanced, customDomain: e.target.value },
+                    })
+                  }
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="analyticsRetention">Retenção de Analytics (dias)</Label>
+                <Input
+                  id="analyticsRetention"
+                  type="number"
+                  value={settings.advanced.analyticsRetention}
+                  onChange={(e) =>
+                    updateSettings({
+                      advanced: {
+                        ...settings.advanced,
+                        analyticsRetention: Number.parseInt(e.target.value) || 30,
+                      },
+                    })
+                  }
+                />
+              </div>
+
+              <Separator />
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label>Status da Conexão</Label>
+                  <div>
+                    <Label>Teste de Conexão</Label>
+                    <p className="text-sm text-muted-foreground">Verificar conectividade com a API</p>
+                  </div>
                   <div className="flex items-center gap-2">
-                    {getConnectionStatusIcon()}
-                    <Badge variant={connectionStatus === "success" ? "default" : "secondary"}>
-                      {connectionStatus === "success"
-                        ? "Conectado"
-                        : connectionStatus === "error"
-                          ? "Erro"
-                          : "Não testado"}
-                    </Badge>
+                    {connectionStatus === "success" && (
+                      <Badge variant="secondary" className="bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Conectado
+                      </Badge>
+                    )}
+                    {connectionStatus === "error" && (
+                      <Badge variant="destructive">
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                        Erro
+                      </Badge>
+                    )}
+                    <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={isTestingConnection}>
+                      {isTestingConnection ? (
+                        <>
+                          <Wifi className="w-4 h-4 mr-2 animate-pulse" />
+                          Testando...
+                        </>
+                      ) : (
+                        <>
+                          <Wifi className="w-4 h-4 mr-2" />
+                          Testar
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
-                <Button onClick={testConnection} disabled={isTestingConnection} className="w-full">
-                  {isTestingConnection ? "Testando..." : "Testar Conexão"}
-                </Button>
               </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-        <Separator className="my-6" />
-
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={handleReset}>
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Restaurar Padrões
-          </Button>
-          <Button onClick={handleSave}>
-            <Save className="h-4 w-4 mr-2" />
-            Salvar Configurações
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="flex justify-between">
+        <Button variant="outline" onClick={handleReset}>
+          <RotateCcw className="w-4 h-4 mr-2" />
+          Resetar Configurações
+        </Button>
+        <Button onClick={handleSave}>
+          <Save className="w-4 h-4 mr-2" />
+          Salvar Configurações
+        </Button>
+      </div>
+    </div>
   )
 }

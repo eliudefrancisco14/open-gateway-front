@@ -1,390 +1,394 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
+import { apiClient, type ApiStream, type ApiStats, type ApiActivity } from "@/lib/api"
 
-interface Stream {
+export interface Stream {
   id: string
-  url: string
-  title?: string
-  platform?: string
-  status: "PENDING" | "INGESTING" | "COMPLETED" | "STOPPED" | "ERROR"
-  currentQuality: string
-  startTime: string
-  outputFolder: string
-  finalMp4Path: string | null
-  endTime: string | null
-  errorMessage: string | null
-}
-
-interface Stats {
-  activeStreams: number
-  availableSlots: number
-  maxConcurrentStreams: number
-  totalStreams: number
-  websocketConnections: number
-}
-
-interface Activity {
   title: string
   description: string
-  type: "started" | "completed" | "error" | "stopped"
-  time: string
+  thumbnail: string
+  status: "live" | "starting" | "ending" | "offline"
+  viewers: number
+  likes: number
+  duration: string
+  category: string
+  platform: "youtube" | "twitch" | "facebook" | "custom"
+  resolution: string
+  bitrate: string
+  fps: number
+  streamer: {
+    name: string
+    avatar: string
+  }
 }
 
-interface StreamSettings {
-  // Streaming
-  rtmpUrl: string
-  streamKey: string
-  resolution: string
-  fps: number
-  bitrate: number
-  audioQuality: string
-  audioVolume: number
-
-  // Notifications
+export interface StreamSettings {
+  streaming: {
+    quality: string
+    bitrate: number
+    fps: number
+    autoStart: boolean
+    recordingEnabled: boolean
+  }
   notifications: {
-    push: boolean
-    email: boolean
-    streamAlerts: boolean
+    emailAlerts: boolean
+    pushNotifications: boolean
+    streamStarted: boolean
+    viewerMilestones: boolean
+    chatMentions: boolean
   }
-  notificationEmail: string
-
-  // Security
   security: {
-    twoFactor: boolean
-    privateStream: boolean
-    streamPassword: string
+    twoFactorAuth: boolean
+    ipWhitelist: boolean
+    streamKey: string
+    moderationLevel: string
   }
+  appearance: {
+    theme: string
+    language: string
+    timezone: string
+    compactMode: boolean
+  }
+  advanced: {
+    apiAccess: boolean
+    webhookUrl: string
+    customDomain: string
+    analyticsRetention: number
+  }
+}
 
-  // Appearance
-  theme: string
-  layout: string
-  animations: boolean
-  autoRefresh: number
-
-  // Advanced
-  apiEndpoint: string
-  webhookUrl: string
-  debugMode: boolean
-  bufferSize: number
+export interface StreamStats {
+  totalStreams: number
+  activeStreams: number
+  totalViewers: number
+  totalWatchTime: string
+  bandwidth: string
+  uptime: string
 }
 
 interface StreamContextType {
-  currentView: string
-  setCurrentView: (view: string) => void
-  streams: Stream[]
-  stats: Stats
-  recentActivity: Activity[]
+  streams: ApiStream[]
+  stats: ApiStats
+  recentActivity: ApiActivity[]
   settings: StreamSettings
-  addStream: (stream: Stream) => void
-  updateStream: (id: string, updates: Partial<Stream>) => void
+  isLoading: boolean
+  error: string | null
+  addStream: (data: { url: string; customId?: string }) => Promise<void>
   stopStream: (id: string) => Promise<void>
+  refreshStreams: () => Promise<void>
+  refreshStats: () => Promise<void>
   updateSettings: (newSettings: Partial<StreamSettings>) => void
   resetSettings: () => void
+  testConnection: () => Promise<boolean>
 }
 
 const defaultSettings: StreamSettings = {
-  // Streaming
-  rtmpUrl: "rtmp://live.twitch.tv/live/",
-  streamKey: "",
-  resolution: "1920x1080",
-  fps: 30,
-  bitrate: 5000,
-  audioQuality: "high",
-  audioVolume: 80,
-
-  // Notifications
+  streaming: {
+    quality: "1080p",
+    bitrate: 6000,
+    fps: 60,
+    autoStart: false,
+    recordingEnabled: true,
+  },
   notifications: {
-    push: true,
-    email: false,
-    streamAlerts: true,
+    emailAlerts: true,
+    pushNotifications: true,
+    streamStarted: true,
+    viewerMilestones: true,
+    chatMentions: true,
   },
-  notificationEmail: "",
-
-  // Security
   security: {
-    twoFactor: false,
-    privateStream: false,
-    streamPassword: "",
+    twoFactorAuth: false,
+    ipWhitelist: false,
+    streamKey: "sk_live_" + Math.random().toString(36).substr(2, 9),
+    moderationLevel: "medium",
   },
-
-  // Appearance
-  theme: "system",
-  layout: "grid",
-  animations: true,
-  autoRefresh: 30,
-
-  // Advanced
-  apiEndpoint: "https://api.streamdashboard.com/v1",
-  webhookUrl: "",
-  debugMode: false,
-  bufferSize: 256,
+  appearance: {
+    theme: "system",
+    language: "pt-BR",
+    timezone: "America/Sao_Paulo",
+    compactMode: false,
+  },
+  advanced: {
+    apiAccess: false,
+    webhookUrl: "",
+    customDomain: "",
+    analyticsRetention: 30,
+  },
 }
+
+const mockStreams: ApiStream[] = [
+  {
+    id: "1",
+    title: "Desenvolvimento Web ao Vivo",
+    description: "Criando uma aplicação React do zero com Next.js e TypeScript",
+    thumbnail: "/placeholder.svg?height=180&width=320",
+    status: "live",
+    viewers: 1247,
+    likes: 89,
+    duration: "2:34:12",
+    category: "Tecnologia",
+    platform: "youtube",
+    resolution: "1920x1080",
+    bitrate: "6000 kbps",
+    fps: 60,
+    streamer: {
+      name: "DevMaster",
+      avatar: "/placeholder-user.jpg",
+    },
+  },
+  {
+    id: "2",
+    title: "Gaming Session - Cyberpunk 2077",
+    description: "Explorando Night City e completando missões secundárias",
+    thumbnail: "/placeholder.svg?height=180&width=320",
+    status: "live",
+    viewers: 3421,
+    likes: 234,
+    duration: "4:12:45",
+    category: "Gaming",
+    platform: "twitch",
+    resolution: "2560x1440",
+    bitrate: "8000 kbps",
+    fps: 60,
+    streamer: {
+      name: "GamerPro",
+      avatar: "/placeholder-user.jpg",
+    },
+  },
+  {
+    id: "3",
+    title: "Aula de Culinária - Pratos Italianos",
+    description: "Aprendendo a fazer pasta caseira e molhos tradicionais",
+    thumbnail: "/placeholder.svg?height=180&width=320",
+    status: "starting",
+    viewers: 567,
+    likes: 45,
+    duration: "0:05:23",
+    category: "Culinária",
+    platform: "facebook",
+    resolution: "1920x1080",
+    bitrate: "4000 kbps",
+    fps: 30,
+    streamer: {
+      name: "ChefMaria",
+      avatar: "/placeholder-user.jpg",
+    },
+  },
+  {
+    id: "4",
+    title: "Música ao Vivo - Covers Acústicos",
+    description: "Tocando sucessos nacionais e internacionais no violão",
+    thumbnail: "/placeholder.svg?height=180&width=320",
+    status: "live",
+    viewers: 892,
+    likes: 156,
+    duration: "1:45:30",
+    category: "Música",
+    platform: "custom",
+    resolution: "1920x1080",
+    bitrate: "5000 kbps",
+    fps: 30,
+    streamer: {
+      name: "MúsicoJoão",
+      avatar: "/placeholder-user.jpg",
+    },
+  },
+]
 
 const StreamContext = createContext<StreamContextType | undefined>(undefined)
 
 export function StreamProvider({ children }: { children: ReactNode }) {
-  const [currentView, setCurrentView] = useState("dashboard")
-  const [streams, setStreams] = useState<Stream[]>([])
-  const [settings, setSettings] = useState<StreamSettings>(defaultSettings)
-  const [stats, setStats] = useState<Stats>({
+  const [streams, setStreams] = useState<ApiStream[]>(mockStreams)
+  const [stats, setStats] = useState<ApiStats>({
     activeStreams: 0,
-    availableSlots: 5,
-    maxConcurrentStreams: 5,
+    maxConcurrentStreams: 0,
+    availableSlots: 0,
     totalStreams: 0,
-    websocketConnections: 1,
+    websocketConnections: 0,
   })
-  const [recentActivity, setRecentActivity] = useState<Activity[]>([])
+  const [recentActivity, setRecentActivity] = useState<ApiActivity[]>([])
+  const [settings, setSettings] = useState<StreamSettings>(defaultSettings)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Carregar configurações do localStorage na inicialização
+  // Load settings from localStorage
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    try {
       const savedSettings = localStorage.getItem("streamSettings")
       if (savedSettings) {
-        try {
-          const parsed = JSON.parse(savedSettings)
-          setSettings({ ...defaultSettings, ...parsed })
-        } catch (error) {
-          console.error("Erro ao carregar configurações:", error)
-          setSettings(defaultSettings)
-        }
+        const parsed = JSON.parse(savedSettings)
+        setSettings((prev) => ({ ...prev, ...parsed }))
+      }
+    } catch (error) {
+      console.error("Error loading settings:", error)
+    }
+  }, [])
+
+  // Fetch streams from API
+  const refreshStreams = useCallback(async () => {
+    try {
+      setError(null)
+      const apiStreams = await apiClient.getStreams()
+      setStreams(apiStreams)
+    } catch (error) {
+      console.error("Error fetching streams:", error)
+      setError("Failed to fetch streams")
+    }
+  }, [])
+
+  // Fetch stats from API
+  const refreshStats = useCallback(async () => {
+    try {
+      setError(null)
+      const apiStats = await apiClient.getStats()
+      setStats(apiStats)
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+      setError("Failed to fetch stats")
+    }
+  }, [])
+
+  // Fetch recent activity from API
+  const refreshActivity = useCallback(async () => {
+    try {
+      const apiActivity = await apiClient.getActivity()
+      setRecentActivity(apiActivity)
+    } catch (error) {
+      console.error("Error fetching activity:", error)
+      // Don't set error for activity as it might not be implemented
+    }
+  }, [])
+
+  // Initial data load
+  useEffect(() => {
+    const loadInitialData = async () => {
+      setIsLoading(true)
+      try {
+        await Promise.all([refreshStreams(), refreshStats(), refreshActivity()])
+      } catch (error) {
+        console.error("Error loading initial data:", error)
+      } finally {
+        setIsLoading(false)
       }
     }
-  }, [])
 
-  // Salvar configurações no localStorage sempre que mudarem
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("streamSettings", JSON.stringify(settings))
-    }
-  }, [settings])
+    loadInitialData()
+  }, [refreshStreams, refreshStats, refreshActivity])
 
-  // Simular dados iniciais
-  useEffect(() => {
-    const initialStreams: Stream[] = [
-      {
-        id: "stream-demo-1",
-        url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        title: "Live Gaming Session - Minecraft Speedrun",
-        platform: "youtube.com",
-        status: "INGESTING",
-        currentQuality: "1080p",
-        startTime: new Date(Date.now() - 300000).toISOString(),
-        outputFolder: "/streams/stream-demo-1",
-        finalMp4Path: null,
-        endTime: null,
-        errorMessage: null,
-      },
-      {
-        id: "stream-demo-2",
-        url: "https://www.twitch.tv/demo",
-        title: "Just Chatting - Q&A com a Comunidade",
-        platform: "twitch.tv",
-        status: "COMPLETED",
-        currentQuality: "720p",
-        startTime: new Date(Date.now() - 1800000).toISOString(),
-        outputFolder: "/streams/stream-demo-2",
-        finalMp4Path: "/streams/stream-demo-2/final.mp4",
-        endTime: new Date(Date.now() - 600000).toISOString(),
-        errorMessage: null,
-      },
-      {
-        id: "stream-demo-3",
-        url: "https://www.youtube.com/watch?v=example3",
-        title: "Tutorial de Programação - React Avançado",
-        platform: "youtube.com",
-        status: "PENDING",
-        currentQuality: "1080p",
-        startTime: new Date().toISOString(),
-        outputFolder: "/streams/stream-demo-3",
-        finalMp4Path: null,
-        endTime: null,
-        errorMessage: null,
-      },
-    ]
-
-    setStreams(initialStreams)
-
-    const initialActivity: Activity[] = [
-      {
-        title: "Stream Demo 1 iniciado",
-        description: "Processamento de vídeo do YouTube - Gaming",
-        type: "started",
-        time: "5 min atrás",
-      },
-      {
-        title: "Stream Demo 2 concluído",
-        description: "Arquivo MP4 disponível para download",
-        type: "completed",
-        time: "10 min atrás",
-      },
-      {
-        title: "Stream Demo 3 iniciando",
-        description: "Preparando processamento do stream",
-        type: "started",
-        time: "agora",
-      },
-    ]
-
-    setRecentActivity(initialActivity)
-  }, [])
-
-  // Atualizar estatísticas baseado nos streams
-  useEffect(() => {
-    const activeCount = streams.filter((s) => s.status === "PENDING" || s.status === "INGESTING").length
-    setStats((prev) => ({
-      ...prev,
-      activeStreams: activeCount,
-      availableSlots: 5 - activeCount,
-      totalStreams: streams.length,
-    }))
-  }, [streams])
-
-  // Simular atualizações em tempo real via WebSocket
+  // Auto-refresh data every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      setStreams((prev) =>
-        prev.map((stream) => {
-          if (stream.status === "INGESTING" && Math.random() > 0.7) {
-            // Simular mudança de qualidade
-            const qualities = ["480p", "720p", "1080p", "1440p"]
-            const currentIndex = qualities.indexOf(stream.currentQuality)
-            const newQuality =
-              qualities[Math.max(0, Math.min(qualities.length - 1, currentIndex + (Math.random() > 0.5 ? 1 : -1)))]
-            return { ...stream, currentQuality: newQuality }
-          }
-
-          // Simular transição de PENDING para INGESTING
-          if (stream.status === "PENDING" && Math.random() > 0.8) {
-            return { ...stream, status: "INGESTING" as const }
-          }
-
-          return stream
-        }),
-      )
-    }, 5000)
+      refreshStreams()
+      refreshStats()
+      refreshActivity()
+    }, 30000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [refreshStreams, refreshStats, refreshActivity])
 
-  const addStream = (stream: Stream) => {
-    const activeCount = streams.filter((s) => s.status === "PENDING" || s.status === "INGESTING").length
-
-    if (activeCount >= 5) {
-      console.warn("Limite de streams concorrentes atingido")
-      return
-    }
-
-    setStreams((prev) => [...prev, stream])
-
-    setRecentActivity((prev) => [
-      {
-        title: `Stream ${stream.title || stream.id} iniciado`,
-        description: `Processamento de ${stream.platform || "stream"}`,
-        type: "started",
-        time: "agora",
-      },
-      ...prev.slice(0, 4),
-    ])
-  }
-
-  const updateStream = (id: string, updates: Partial<Stream>) => {
-    setStreams((prev) => prev.map((stream) => (stream.id === id ? { ...stream, ...updates } : stream)))
-
-    if (updates.status) {
-      const stream = streams.find((s) => s.id === id)
-      if (stream) {
-        let activityType: Activity["type"] = "started"
-        let description = ""
-
-        switch (updates.status) {
-          case "COMPLETED":
-            activityType = "completed"
-            description = "Stream processado com sucesso"
-            break
-          case "ERROR":
-            activityType = "error"
-            description = updates.errorMessage || "Erro no processamento"
-            break
-          case "STOPPED":
-            activityType = "stopped"
-            description = "Stream interrompido"
-            break
-        }
-
-        setRecentActivity((prev) => [
-          {
-            title: `Stream ${stream.title || id} ${updates.status.toLowerCase()}`,
-            description,
-            type: activityType,
-            time: "agora",
-          },
-          ...prev.slice(0, 4),
-        ])
+  // Add new stream
+  const addStream = useCallback(
+    async (data: { url: string; customId?: string }) => {
+      try {
+        setError(null)
+        await apiClient.startStream(data.url, data.customId)
+        // Refresh streams to get the new one
+        await refreshStreams()
+        await refreshStats()
+      } catch (error) {
+        console.error("Error starting stream:", error)
+        setError("Failed to start stream")
+        throw error
       }
-    }
-  }
+    },
+    [refreshStreams, refreshStats],
+  )
 
-  const stopStream = async (id: string): Promise<void> => {
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+  // Stop stream
+  const stopStream = useCallback(
+    async (id: string) => {
+      try {
+        setError(null)
+        await apiClient.stopStream(id)
+        // Refresh streams to get updated status
+        await refreshStreams()
+        await refreshStats()
+      } catch (error) {
+        console.error("Error stopping stream:", error)
+        setError("Failed to stop stream")
+        throw error
+      }
+    },
+    [refreshStreams, refreshStats],
+  )
 
-      updateStream(id, {
-        status: "STOPPED",
-        endTime: new Date().toISOString(),
+  // Update settings
+  const updateSettings = useCallback((newSettings: Partial<StreamSettings>) => {
+    setSettings((prev) => {
+      const updated = { ...prev }
+
+      // Deep merge for nested objects
+      Object.keys(newSettings).forEach((key) => {
+        if (typeof newSettings[key as keyof StreamSettings] === "object") {
+          updated[key as keyof StreamSettings] = {
+            ...updated[key as keyof StreamSettings],
+            ...newSettings[key as keyof StreamSettings],
+          } as any
+        } else {
+          ;(updated as any)[key] = (newSettings as any)[key]
+        }
       })
 
-      setRecentActivity((prev) => [
-        {
-          title: `Stream ${id} parado`,
-          description: "Stream interrompido pelo usuário",
-          type: "stopped",
-          time: "agora",
-        },
-        ...prev.slice(0, 4),
-      ])
-    } catch (error) {
-      console.error("Erro ao parar stream:", error)
-    }
-  }
-
-  const updateSettings = (newSettings: Partial<StreamSettings>) => {
-    setSettings((prev) => {
-      const updated = { ...prev, ...newSettings }
-
-      // Merge nested objects properly
-      if (newSettings.notifications) {
-        updated.notifications = { ...prev.notifications, ...newSettings.notifications }
-      }
-      if (newSettings.security) {
-        updated.security = { ...prev.security, ...newSettings.security }
+      // Save to localStorage
+      try {
+        localStorage.setItem("streamSettings", JSON.stringify(updated))
+      } catch (error) {
+        console.error("Error saving settings:", error)
       }
 
       return updated
     })
-  }
+  }, [])
 
-  const resetSettings = () => {
+  // Reset settings
+  const resetSettings = useCallback(() => {
     setSettings(defaultSettings)
-    if (typeof window !== "undefined") {
+    try {
       localStorage.removeItem("streamSettings")
+    } catch (error) {
+      console.error("Error clearing settings:", error)
     }
-  }
+  }, [])
+
+  // Test connection
+  const testConnection = useCallback(async (): Promise<boolean> => {
+    try {
+      await apiClient.healthCheck()
+      return true
+    } catch (error) {
+      console.error("Connection test failed:", error)
+      return false
+    }
+  }, [])
 
   return (
     <StreamContext.Provider
       value={{
-        currentView,
-        setCurrentView,
         streams,
         stats,
         recentActivity,
         settings,
+        isLoading,
+        error,
         addStream,
-        updateStream,
         stopStream,
+        refreshStreams,
+        refreshStats,
         updateSettings,
         resetSettings,
+        testConnection,
       }}
     >
       {children}
@@ -399,3 +403,6 @@ export function useStreamContext() {
   }
   return context
 }
+
+// Alias for backward compatibility
+export const useStream = useStreamContext

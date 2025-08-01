@@ -1,94 +1,70 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Video, Download, Play, Search, Calendar, Clock, FileVideo, ExternalLink } from "lucide-react"
+import { Download, Play, Search, Calendar, Clock, HardDrive, Video } from "lucide-react"
 import { useStreamContext } from "@/contexts/stream-context"
 import { useState } from "react"
+import { formatDate, formatDuration, getStatusText } from "@/lib/utils"
+import { apiClient } from "@/lib/api"
 
 export function ProcessedVideos() {
   const { streams } = useStreamContext()
   const [searchTerm, setSearchTerm] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 6
 
-  const processedStreams = streams.filter((stream) => stream.status === "COMPLETED" || stream.status === "STOPPED")
+  const completedStreams = streams.filter((stream) => stream.status === "COMPLETED" && stream.finalMp4Path)
 
-  const filteredStreams = processedStreams.filter(
+  const filteredStreams = completedStreams.filter(
     (stream) =>
       stream.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       stream.url.toLowerCase().includes(searchTerm.toLowerCase()) ||
       stream.title?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const totalPages = Math.ceil(filteredStreams.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedStreams = filteredStreams.slice(startIndex, startIndex + itemsPerPage)
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return "secondary"
-      case "STOPPED":
-        return "outline"
-      default:
-        return "outline"
-    }
-  }
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return "Concluído"
-      case "STOPPED":
-        return "Parado"
-      default:
-        return status
-    }
-  }
-
   const handleDownload = (stream: any) => {
     if (stream.finalMp4Path) {
-      // Simular download
-      const link = document.createElement("a")
-      link.href = `/api/download/${stream.id}`
-      link.download = `${stream.id}.mp4`
-      link.click()
+      const downloadUrl = apiClient.getDownloadUrl(stream.id)
+      window.open(downloadUrl, "_blank")
     }
   }
 
-  const formatDuration = (startTime: string, endTime: string | null) => {
-    if (!endTime) return "N/A"
-    const duration = new Date(endTime).getTime() - new Date(startTime).getTime()
-    const minutes = Math.floor(duration / 60000)
-    const seconds = Math.floor((duration % 60000) / 1000)
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`
-  }
-
-  if (processedStreams.length === 0) {
+  if (completedStreams.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <Video className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Nenhum Vídeo Processado</h3>
-        <p className="text-muted-foreground text-center max-w-md">
-          Ainda não há vídeos processados. Os streams concluídos aparecerão aqui.
-        </p>
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Vídeos Processados</h2>
+          <p className="text-muted-foreground">Nenhum vídeo processado ainda</p>
+        </div>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Video className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-medium mb-2">Nenhum Vídeo Processado</h3>
+            <p className="text-muted-foreground text-center max-w-md mx-auto">
+              Ainda não há vídeos processados. Os streams concluídos aparecerão aqui.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Vídeos Processados</h2>
+        <p className="text-muted-foreground">{completedStreams.length} vídeo(s) processado(s) com sucesso</p>
+      </div>
+
       {/* Cabeçalho e Pesquisa */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Video className="h-5 w-5" />
-            Vídeos Processados ({processedStreams.length})
+            Histórico de Streams ({completedStreams.length})
           </CardTitle>
-          <CardDescription>Histórico de streams concluídos e arquivos disponíveis para download</CardDescription>
+          <CardDescription>Arquivos disponíveis para download</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
@@ -105,13 +81,16 @@ export function ProcessedVideos() {
 
       {/* Grid de Vídeos */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {paginatedStreams.map((stream) => (
+        {filteredStreams.map((stream) => (
           <Card key={stream.id} className="overflow-hidden">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="space-y-1 flex-1">
-                  <CardTitle className="text-base line-clamp-1">{stream.id}</CardTitle>
-                  <Badge variant={getStatusColor(stream.status)}>{getStatusText(stream.status)}</Badge>
+                  <CardTitle className="text-base line-clamp-1">{stream.title || stream.id}</CardTitle>
+                  <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    <Play className="w-3 h-3 mr-1" />
+                    {getStatusText(stream.status)}
+                  </Badge>
                 </div>
               </div>
             </CardHeader>
@@ -119,26 +98,19 @@ export function ProcessedVideos() {
             <CardContent className="space-y-4">
               {/* Thumbnail Placeholder */}
               <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                <FileVideo className="h-8 w-8 text-muted-foreground" />
+                <Video className="h-8 w-8 text-muted-foreground" />
               </div>
 
               {/* Informações do Vídeo */}
               <div className="space-y-2 text-sm">
-                {stream.title && (
-                  <div>
-                    <span className="font-medium line-clamp-2">{stream.title}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <ExternalLink className="h-3 w-3" />
-                  <span className="truncate">{new URL(stream.url).hostname}</span>
+                <div className="text-muted-foreground">
+                  <span className="truncate block">{new URL(stream.url).hostname}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    <span>{new Date(stream.startTime).toLocaleDateString()}</span>
+                    <span>{stream.endTime ? formatDate(stream.endTime) : "N/A"}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
@@ -151,73 +123,31 @@ export function ProcessedVideos() {
 
               {/* Ações */}
               <div className="flex gap-2">
-                {stream.finalMp4Path && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 bg-transparent"
-                      onClick={() => handleDownload(stream)}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Download
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1 bg-transparent">
-                      <Play className="h-4 w-4 mr-1" />
-                      Reproduzir
-                    </Button>
-                  </>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 bg-transparent"
+                  onClick={() => handleDownload(stream)}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Download
+                </Button>
               </div>
 
               {/* Caminho do Arquivo */}
               {stream.finalMp4Path && (
                 <div className="text-xs">
-                  <span className="text-muted-foreground">Arquivo:</span>
-                  <div className="font-mono bg-muted p-1 rounded mt-1 truncate">{stream.finalMp4Path}</div>
+                  <div className="flex items-center gap-1 mb-1">
+                    <HardDrive className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Arquivo:</span>
+                  </div>
+                  <div className="font-mono bg-muted p-1 rounded truncate text-xs">{stream.finalMp4Path}</div>
                 </div>
               )}
             </CardContent>
           </Card>
         ))}
       </div>
-
-      {/* Paginação */}
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-          >
-            Anterior
-          </Button>
-
-          <div className="flex items-center gap-1">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <Button
-                key={page}
-                variant={currentPage === page ? "default" : "outline"}
-                size="sm"
-                onClick={() => setCurrentPage(page)}
-                className="w-8 h-8 p-0"
-              >
-                {page}
-              </Button>
-            ))}
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Próximo
-          </Button>
-        </div>
-      )}
 
       {filteredStreams.length === 0 && searchTerm && (
         <div className="text-center py-8">

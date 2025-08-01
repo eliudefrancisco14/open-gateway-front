@@ -8,95 +8,124 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Upload, CheckCircle, AlertCircle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Loader2, Plus, AlertCircle, CheckCircle, Radio } from "lucide-react"
 import { useStreamContext } from "@/contexts/stream-context"
+import { useToast } from "@/hooks/use-toast"
 
 export function StreamIngest() {
   const [url, setUrl] = useState("")
   const [customId, setCustomId] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error" | null
-    message: string
-  }>({ type: null, message: "" })
-
-  const { addStream } = useStreamContext()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { addStream, stats, error } = useStreamContext()
+  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!url.trim()) {
-      setFeedback({
-        type: "error",
-        message: "Por favor, insira uma URL válida",
+      toast({
+        title: "Erro",
+        description: "Por favor, insira uma URL válida",
+        variant: "destructive",
       })
       return
     }
 
-    setIsLoading(true)
-    setFeedback({ type: null, message: "" })
-
+    setIsSubmitting(true)
     try {
-      // Simular chamada à API
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      // Simular resposta da API
-      const streamId = customId.trim() || `stream-${Date.now()}`
-
-      addStream({
-        id: streamId,
+      await addStream({
         url: url.trim(),
-        title: `Stream from ${new URL(url).hostname}`,
-        platform: new URL(url).hostname,
-        status: "PENDING",
-        currentQuality: "1080p",
-        startTime: new Date().toISOString(),
-        outputFolder: `/streams/${streamId}`,
-        finalMp4Path: null,
-        endTime: null,
-        errorMessage: null,
+        customId: customId.trim() || undefined,
       })
 
-      setFeedback({
-        type: "success",
-        message: `Stream iniciado com sucesso! ID: ${streamId}`,
+      toast({
+        title: "Stream iniciado com sucesso!",
+        description: "O stream foi adicionado à fila de processamento",
       })
 
       setUrl("")
       setCustomId("")
     } catch (error) {
-      setFeedback({
-        type: "error",
-        message: "Erro ao iniciar stream. Tente novamente.",
+      toast({
+        title: "Erro ao iniciar stream",
+        description: "Não foi possível iniciar o stream. Tente novamente.",
+        variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
+  const isAtCapacity = stats.availableSlots === 0
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Ingestão de Stream</h2>
+        <p className="text-muted-foreground">Adicione novos streams para processamento e monitoramento</p>
+      </div>
+
+      {/* Status do Sistema */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            Nova Ingestão de Stream
+            <Radio className="h-5 w-5" />
+            Status do Sistema
           </CardTitle>
-          <CardDescription>Inicie o processamento de um novo stream de vídeo fornecendo a URL</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <span className="text-sm font-medium">Streams Ativos</span>
+              <Badge variant="default">{stats.activeStreams}</Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <span className="text-sm font-medium">Slots Disponíveis</span>
+              <Badge variant={stats.availableSlots > 0 ? "secondary" : "destructive"}>{stats.availableSlots}</Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <span className="text-sm font-medium">Capacidade Máxima</span>
+              <Badge variant="outline">{stats.maxConcurrentStreams}</Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Formulário de Ingestão */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Novo Stream</CardTitle>
+          <CardDescription>Insira a URL do stream que deseja processar</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {isAtCapacity && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>Sistema em capacidade máxima. Aguarde a conclusão de outros streams.</AlertDescription>
+            </Alert>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="url">URL do Stream *</Label>
               <Input
                 id="url"
                 type="url"
-                placeholder="https://www.youtube.com/watch?v=..."
+                placeholder="https://exemplo.com/stream"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                disabled={isLoading}
+                disabled={isSubmitting || isAtCapacity}
                 required
               />
+              <p className="text-xs text-muted-foreground">Insira a URL completa do stream que deseja processar</p>
             </div>
 
             <div className="space-y-2">
@@ -104,35 +133,24 @@ export function StreamIngest() {
               <Input
                 id="customId"
                 type="text"
-                placeholder="meu-stream-unico"
+                placeholder="meu-stream-personalizado"
                 value={customId}
                 onChange={(e) => setCustomId(e.target.value)}
-                disabled={isLoading}
+                disabled={isSubmitting || isAtCapacity}
               />
               <p className="text-xs text-muted-foreground">Se não fornecido, será gerado automaticamente</p>
             </div>
 
-            {feedback.type && (
-              <Alert variant={feedback.type === "error" ? "destructive" : "default"}>
-                {feedback.type === "success" ? (
-                  <CheckCircle className="h-4 w-4" />
-                ) : (
-                  <AlertCircle className="h-4 w-4" />
-                )}
-                <AlertDescription>{feedback.message}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
+            <Button type="submit" className="w-full" disabled={isSubmitting || isAtCapacity || !url.trim()}>
+              {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Iniciando Ingestão...
+                  Iniciando Stream...
                 </>
               ) : (
                 <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Iniciar Ingestão
+                  <Plus className="mr-2 h-4 w-4" />
+                  Iniciar Stream
                 </>
               )}
             </Button>
@@ -143,18 +161,32 @@ export function StreamIngest() {
       {/* Informações Adicionais */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Formatos Suportados</CardTitle>
+          <CardTitle>Informações</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 text-sm">
+        <CardContent className="space-y-3">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
             <div>
-              <strong>Plataformas:</strong> YouTube, Twitch, Facebook Live, e outras
+              <p className="font-medium">Processamento Automático</p>
+              <p className="text-sm text-muted-foreground">
+                O stream será processado automaticamente após ser adicionado
+              </p>
             </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
             <div>
-              <strong>Qualidades:</strong> Automática (até 1080p)
+              <p className="font-medium">Monitoramento em Tempo Real</p>
+              <p className="text-sm text-muted-foreground">Acompanhe o progresso na seção "Streams Ativos"</p>
             </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
             <div>
-              <strong>Formato de Saída:</strong> MP4 (H.264)
+              <p className="font-medium">Download Automático</p>
+              <p className="text-sm text-muted-foreground">
+                Vídeos processados ficam disponíveis na seção "Vídeos Processados"
+              </p>
             </div>
           </div>
         </CardContent>
